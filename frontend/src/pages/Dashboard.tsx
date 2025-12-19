@@ -62,7 +62,7 @@ export const Dashboard = () => {
 
         const unsubscribe = realtimeService.subscribe((msg) => {
             if (msg.type === 'update') {
-                const { data } = msg;
+                const { data, alerts } = msg;
 
                 // Update Realtime Data for LiveFeed
                 setRealtimeData(prev => {
@@ -71,12 +71,19 @@ export const Dashboard = () => {
                     return { ...prev, [data.asset_id]: newHistory };
                 });
 
-                // Update Risk History (Throttled or simulated based on aggregation)
-                // In a real app, this would come from a separate aggregate stream or be computed
+                // Calculate new status based on alerts
+                let newStatus: Asset['status'] = 'NORMAL';
+                if (alerts && alerts.some((a: any) => a.severity === 'CRITICAL')) {
+                    newStatus = 'CRITICAL';
+                } else if (alerts && alerts.some((a: any) => a.severity === 'WARNING')) {
+                    newStatus = 'WARNING';
+                }
+
+                // Update Risk History and Assets State
                 setAssets(currentAssets => {
                     // Update the specific asset in the assets list
                     const updatedAssets = currentAssets.map(a =>
-                        a.id === data.asset_id ? { ...a, last_updated: new Date().toISOString() } : a
+                        a.id === data.asset_id ? { ...a, status: newStatus, last_updated: new Date().toISOString() } : a
                     );
 
                     // Calculate new stats

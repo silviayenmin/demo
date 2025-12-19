@@ -17,6 +17,9 @@ export const Assets = () => {
                 setAssets([
                     { id: 'RB-001', name: 'Axle #1', type: 'Bearing', location: 'Coach A', status: 'NORMAL', last_updated: new Date().toISOString() },
                     { id: 'RB-002', name: 'Axle #2', type: 'Bearing', location: 'Coach A', status: 'WARNING', last_updated: new Date().toISOString() },
+                    { id: 'RB-003', name: 'Axle #3', type: 'Bearing', location: 'Coach B', status: 'NORMAL', last_updated: new Date().toISOString() },
+                    { id: 'RB-004', name: 'Axle #4', type: 'Bearing', location: 'Coach B', status: 'CRITICAL', last_updated: new Date().toISOString() },
+                    { id: 'RB-005', name: 'Axle #5', type: 'Bearing', location: 'Coach C', status: 'NORMAL', last_updated: new Date().toISOString() },
                 ]);
             }
         };
