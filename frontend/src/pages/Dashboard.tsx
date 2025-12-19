@@ -4,8 +4,9 @@ import type { Asset } from '../services/api';
 import { realtimeService } from '../services/realtime';
 import type { RealtimeSensorData } from '../services/realtime';
 import { LiveFeed } from '../components/LiveFeed';
-import { Activity, AlertTriangle, CheckCircle, Smartphone } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { FleetRiskChart } from '../components/FleetRiskChart';
+import { Activity, AlertTriangle, CheckCircle, Smartphone, Info } from 'lucide-react';
+
 
 const StatCard = ({ label, value, icon: Icon, color }: any) => (
     <div className="rounded-xl border border-border bg-card p-6">
@@ -25,10 +26,35 @@ const StatCard = ({ label, value, icon: Icon, color }: any) => (
     </div>
 );
 
+const TooltipWrapper = ({ children, content }: { children: React.ReactNode, content: string }) => (
+    <div className="group relative flex">
+        {children}
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-popover text-popover-foreground text-xs rounded border border-border shadow-md z-50">
+            {content}
+        </span>
+    </div>
+);
+
 export const Dashboard = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [realtimeData, setRealtimeData] = useState<Record<string, RealtimeSensorData[]>>({});
     const [loading, setLoading] = useState(true);
+    const [riskHistory, setRiskHistory] = useState<any[]>([]);
+
+    // Initialize mock history for the chart on load
+    useEffect(() => {
+        const now = new Date();
+        const initialHistory = Array.from({ length: 10 }).map((_, i) => {
+            const time = new Date(now.getTime() - (9 - i) * 60000); // Last 10 minutes
+            return {
+                time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                healthy: 40 + Math.floor(Math.random() * 5),
+                warning: 2 + Math.floor(Math.random() * 3),
+                critical: Math.floor(Math.random() * 2)
+            };
+        });
+        setRiskHistory(initialHistory);
+    }, []);
 
     // Connect to WebSocket on mount
     useEffect(() => {
@@ -37,10 +63,47 @@ export const Dashboard = () => {
         const unsubscribe = realtimeService.subscribe((msg) => {
             if (msg.type === 'update') {
                 const { data } = msg;
+
+                // Update Realtime Data for LiveFeed
                 setRealtimeData(prev => {
                     const currentHistory = prev[data.asset_id] || [];
                     const newHistory = [...currentHistory, data].slice(-60); // Keep last 60 points
                     return { ...prev, [data.asset_id]: newHistory };
+                });
+
+                // Update Risk History (Throttled or simulated based on aggregation)
+                // In a real app, this would come from a separate aggregate stream or be computed
+                setAssets(currentAssets => {
+                    // Update the specific asset in the assets list
+                    const updatedAssets = currentAssets.map(a =>
+                        a.id === data.asset_id ? { ...a, last_updated: new Date().toISOString() } : a
+                    );
+
+                    // Calculate new stats
+                    const stats = {
+                        healthy: updatedAssets.filter(a => a.status === 'NORMAL').length,
+                        warning: updatedAssets.filter(a => a.status === 'WARNING').length,
+                        critical: updatedAssets.filter(a => a.status === 'CRITICAL').length,
+                    };
+
+                    setRiskHistory(prev => {
+                        const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const lastEntry = prev[prev.length - 1];
+
+                        // Only add new entry if minute changed
+                        if (lastEntry && lastEntry.time === nowStr) {
+                            // Update last entry
+                            return [
+                                ...prev.slice(0, -1),
+                                { time: nowStr, ...stats }
+                            ];
+                        } else {
+                            // Add new entry and keep last 20
+                            return [...prev, { time: nowStr, ...stats }].slice(-20);
+                        }
+                    });
+
+                    return updatedAssets;
                 });
             }
         });
@@ -87,11 +150,7 @@ export const Dashboard = () => {
         normal: assets.filter(a => a.status === 'NORMAL').length,
     };
 
-    const statusData = [
-        { name: 'Normal', value: stats.normal, color: '#22c55e' },
-        { name: 'Warning', value: stats.warning, color: '#eab308' },
-        { name: 'Critical', value: stats.critical, color: '#ef4444' },
-    ];
+
 
     if (loading) return <div>Loading...</div>;
 
@@ -109,26 +168,14 @@ export const Dashboard = () => {
                     <LiveFeed data={realtimeData} />
 
                     <div className="rounded-xl border border-border bg-card p-6">
-                        <h3 className="mb-4 text-lg font-semibold">Fleet Health Status</h3>
-                        <div className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={statusData}>
-                                    <XAxis dataKey="name" stroke="#888888" />
-                                    <YAxis stroke="#888888" />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                                        cursor={{ fill: 'transparent' }}
-                                    />
-                                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                        {statusData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold">Fleet System Reliability</h3>
+                            <TooltipWrapper content="Real-time trend of fleet health states over the last 20 minutes.">
+                                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                            </TooltipWrapper>
                         </div>
+                        <FleetRiskChart data={riskHistory} />
                     </div>
-
                 </div>
 
                 <div className="rounded-xl border border-border bg-card p-6">
