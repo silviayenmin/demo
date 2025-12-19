@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AssetService } from '../services/api';
 import type { Asset } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { realtimeService } from '../services/realtime';
 
 export const Assets = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
@@ -24,6 +25,37 @@ export const Assets = () => {
             }
         };
         fetchAssets();
+    }, []);
+
+    // Real-time subscription
+    useEffect(() => {
+        realtimeService.connect();
+
+        const unsubscribe = realtimeService.subscribe((msg) => {
+            if (msg.type === 'update') {
+                const { data, alerts } = msg;
+
+                // Determine new status based on alerts in this message
+                let newStatus: Asset['status'] = 'NORMAL';
+                if (alerts && alerts.some((a: any) => a.severity === 'CRITICAL')) {
+                    newStatus = 'CRITICAL';
+                } else if (alerts && alerts.some((a: any) => a.severity === 'WARNING')) {
+                    newStatus = 'WARNING';
+                }
+
+                setAssets(currentAssets =>
+                    currentAssets.map(asset =>
+                        asset.id === data.asset_id
+                            ? { ...asset, status: newStatus, last_updated: new Date().toISOString() }
+                            : asset
+                    )
+                );
+            }
+        });
+
+        return () => {
+            unsubscribe();
+        };
     }, []);
 
     return (

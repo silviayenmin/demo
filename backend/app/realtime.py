@@ -5,8 +5,9 @@ import json
 import random
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, update
 from app.models_realtime import RealtimeSensorData, RealtimeAlert
+from app.models import Asset
 from app.database import AsyncSessionLocal
 
 class RealtimeManager:
@@ -107,6 +108,27 @@ class RealtimeManager:
                 )
                 db.add(db_alert)
             
+                db.add(db_alert)
+            
+            # Update Asset Status in Main Table
+            new_status = "NORMAL"
+            if len(alerts) > 0:
+                # Simple logic: if any alert, take the highest severity
+                if any(a["severity"] == "CRITICAL" for a in alerts):
+                    new_status = "CRITICAL"
+                elif any(a["severity"] == "WARNING" for a in alerts):
+                    new_status = "WARNING"
+            
+            # Execute update
+            await db.execute(
+                update(Asset)
+                .where(Asset.id == asset_id)
+                .values(
+                    status=new_status, 
+                    last_updated=datetime.utcnow()
+                )
+            )
+
             await db.commit()
 
         # 5. Broadcast (Fire and Forget)
