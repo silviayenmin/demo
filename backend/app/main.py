@@ -16,13 +16,16 @@ class Settings(BaseSettings):
 settings = Settings()
 
 from contextlib import asynccontextmanager
-from app import models, database, api
+from app import database, api
+from app.models import Base as ModelsBase
+from app.models_realtime import Base as RealtimeBase
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load DB (Create tables for MVP simplicity)
     async with database.engine.begin() as conn:
-        await conn.run_sync(models.Base.metadata.create_all)
+        await conn.run_sync(ModelsBase.metadata.create_all)
+        await conn.run_sync(RealtimeBase.metadata.create_all)
     yield
 
 app = FastAPI(
@@ -42,7 +45,10 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+from app.routers import realtime
+
 app.include_router(api.router, prefix=settings.API_V1_STR)
+app.include_router(realtime.router, prefix="/api/realtime")
 
 @app.get("/health")
 async def health_check():

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { AssetService } from '../services/api';
 import type { Asset } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 export const Assets = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
+    const navigate = useNavigate();
 
     useEffect(() => {
         // Mock data logic specific for this page if API fails
@@ -38,7 +40,11 @@ export const Assets = () => {
                     </thead>
                     <tbody>
                         {assets.map((asset) => (
-                            <tr key={asset.id} className="border-b border-border hover:bg-muted/50">
+                            <tr
+                                key={asset.id}
+                                className="border-b border-border hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={() => navigate(`/assets/${asset.id}`)}
+                            >
                                 <td className="p-4 font-medium">{asset.id}</td>
                                 <td className="p-4">{asset.name}</td>
                                 <td className="p-4">{asset.type}</td>

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AssetService } from '../services/api';
 import type { Asset } from '../services/api';
+import { realtimeService } from '../services/realtime';
+import type { RealtimeSensorData } from '../services/realtime';
+import { LiveFeed } from '../components/LiveFeed';
 import { Activity, AlertTriangle, CheckCircle, Smartphone } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -9,7 +12,11 @@ const StatCard = ({ label, value, icon: Icon, color }: any) => (
         <div className="flex items-center justify-between">
             <div>
                 <p className="text-sm font-medium text-muted-foreground">{label}</p>
-                <h3 className="mt-2 text-2xl font-bold">{value}</h3>
+                <h3 className="mt-2 text-2xl font-bold flex items-baseline gap-2">
+                    {value}
+                    {/* Add trend indicator if real-time update happened recently */}
+                    <span className="text-xs font-normal text-muted-foreground animate-pulse">●</span>
+                </h3>
             </div>
             <div className={`rounded-full p-3 ${color}`}>
                 <Icon className="h-5 w-5" />
@@ -20,7 +27,28 @@ const StatCard = ({ label, value, icon: Icon, color }: any) => (
 
 export const Dashboard = () => {
     const [assets, setAssets] = useState<Asset[]>([]);
+    const [realtimeData, setRealtimeData] = useState<Record<string, RealtimeSensorData[]>>({});
     const [loading, setLoading] = useState(true);
+
+    // Connect to WebSocket on mount
+    useEffect(() => {
+        realtimeService.connect();
+
+        const unsubscribe = realtimeService.subscribe((msg) => {
+            if (msg.type === 'update') {
+                const { data } = msg;
+                setRealtimeData(prev => {
+                    const currentHistory = prev[data.asset_id] || [];
+                    const newHistory = [...currentHistory, data].slice(-60); // Keep last 60 points
+                    return { ...prev, [data.asset_id]: newHistory };
+                });
+            }
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, []);
 
     // MOCK DATA GENERATOR (Since we can't connect to backend yet)
     // In production, this would be replaced by actual API calls
@@ -77,25 +105,30 @@ export const Dashboard = () => {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-                <div className="rounded-xl border border-border bg-card p-6">
-                    <h3 className="mb-4 text-lg font-semibold">Fleet Health Status</h3>
-                    <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={statusData}>
-                                <XAxis dataKey="name" stroke="#888888" />
-                                <YAxis stroke="#888888" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                                    cursor={{ fill: 'transparent' }}
-                                />
-                                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                    {statusData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                <div className="space-y-6">
+                    <LiveFeed data={realtimeData} />
+
+                    <div className="rounded-xl border border-border bg-card p-6">
+                        <h3 className="mb-4 text-lg font-semibold">Fleet Health Status</h3>
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={statusData}>
+                                    <XAxis dataKey="name" stroke="#888888" />
+                                    <YAxis stroke="#888888" />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
+                                        cursor={{ fill: 'transparent' }}
+                                    />
+                                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                        {statusData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
+
                 </div>
 
                 <div className="rounded-xl border border-border bg-card p-6">
